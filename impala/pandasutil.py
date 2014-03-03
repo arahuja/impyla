@@ -8,8 +8,7 @@ try:
 except ImportError:
     print "Failed to import numpy"
 
-import random
-import string
+from util import generate_random_table_name
 
 def as_pandas(cursor):
     names = [metadata[0] for metadata in cursor.description]
@@ -17,7 +16,7 @@ def as_pandas(cursor):
                         columns=names)
 
 def join(df, impala_table, conn, on=[], impala_table_cols = []):
-    df_table = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
+    df_table = generate_random_table_name()
     write_frame(df, df_table, conn)
     query = _create_join_query(df_table, impala_table, impala_table_cols = impala_table_cols, on = on)
     cur = conn.cursor()
@@ -81,7 +80,11 @@ def _clean_column_names(col, replace_char = '_'):
     return col.strip()
 
 def _table_exists(name, conn):
-    return len(pd.io.sql.tquery("show tables like '%s'" % name.lower(), conn)) > 0    
+    cur = conn.cursor()
+    cur.execute("show tables like '%s'" % name.lower())
+    rows = len(cur)
+    cur.close()
+    return rows > 0    
 
 def _get_create_statement(frame, name):
     safe_columns = [ _clean_column_names(col) for col in frame.dtypes.index]
@@ -107,3 +110,4 @@ def _write_query(df, table_name, cursor):
     insert_query += " VALUES " + "%s"
     insert_query = insert_query % ",".join(str(d) for d in data)
     cursor.execute(insert_query)
+    cursor.close()
